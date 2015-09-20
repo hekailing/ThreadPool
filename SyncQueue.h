@@ -37,6 +37,7 @@ class SyncQueue {
     T pop();
     void push(T);
     void wakeAll();
+    void close(bool immediate);
  private:
     std::deque<T> _q;
     pthread_mutex_t _qMutex;
@@ -52,12 +53,12 @@ T SyncQueue<T>::pop() {
     T t;
     {
         ScopedLocker lock(_qMutex);
-        if (_q.empty()) {
+        while (_q.empty()) {
             pthread_cond_wait(&_emptyCond, &_qMutex);
         }
-        wakePush = (_q.size() == _capacity);
-        if (!_q.empty()) {
-            t = _q.front();
+        wakePush = (_q.size() >= _capacity);
+        t = _q.front();
+        if (t) {
             _q.pop_front();
         }
     }
@@ -70,23 +71,36 @@ T SyncQueue<T>::pop() {
 
 template <typename T>
 void SyncQueue<T>::push(T t) {
-    bool wakePop = false;
+    if (!t) {
+        return;
+    }
     {
         ScopedLocker lock(_qMutex);
         while (_q.size() == _capacity) {
             pthread_cond_wait(&_fullCond, &_qMutex);
         }
-        wakePop = (_q.size() == 0);
         _q.push_back(t);
     }
-    if (wakePop) {
-        pthread_cond_signal(&_emptyCond);
-    }
+    pthread_cond_signal(&_emptyCond);
 }
+
 
 template <typename T>
 void SyncQueue<T>::wakeAll() {
     pthread_cond_broadcast(&_emptyCond);
+}
+
+
+template <typename T>
+void SyncQueue<T>::close(bool immediate) {
+    ScopedLocker lock(_qMutex);
+    T t;
+    if (immediate) {
+        _q.push_front(t);
+    } else {
+        _q.push_back(t);
+    }
+    wakeAll();
 }
 
 #endif

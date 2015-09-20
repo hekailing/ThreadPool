@@ -22,17 +22,13 @@ class ThreadPool {
             pthread_create(&tid, NULL, (ThreadLoop)&ThreadPool::workLoop, this);
             _threads.push_back(tid);
         }
-        pthread_spin_init(&_closeSpin, PTHREAD_PROCESS_PRIVATE);
     }
     ~ThreadPool() {
-        pthread_spin_lock(&_closeSpin);
-        _taskQueue.wakeAll();
+        _taskQueue.close(false);    // parameter false means wait all items processed
         for (size_t i = 0; i < _threads.size(); ++i) {
             pthread_join(_threads[i], NULL);
         }
         _threads.clear();
-        pthread_spin_unlock(&_closeSpin);
-        pthread_spin_destroy(&_closeSpin);
     }
     void pushWorkItem(WorkItemPtr workItem);
  private:
@@ -40,7 +36,6 @@ class ThreadPool {
     void* workLoop();
     std::vector<pthread_t> _threads;
     SyncQueue<WorkItemPtr> _taskQueue;
-    pthread_spinlock_t _closeSpin;
 };
 
 #endif
