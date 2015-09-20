@@ -52,11 +52,10 @@ T SyncQueue<T>::pop() {
     T t;
     {
         ScopedLocker lock(_qMutex);
-        wakePush = (_q.size() == _capacity);
         if (_q.empty()) {
             pthread_cond_wait(&_emptyCond, &_qMutex);
         }
-        wakePush |= (_q.size() == _capacity);
+        wakePush = (_q.size() == _capacity);
         if (!_q.empty()) {
             t = _q.front();
             _q.pop_front();
@@ -71,14 +70,18 @@ T SyncQueue<T>::pop() {
 
 template <typename T>
 void SyncQueue<T>::push(T t) {
+    bool wakePop = false;
     {
         ScopedLocker lock(_qMutex);
         while (_q.size() == _capacity) {
             pthread_cond_wait(&_fullCond, &_qMutex);
         }
+        wakePop = (_q.size() == 0);
         _q.push_back(t);
     }
-    pthread_cond_signal(&_emptyCond);
+    if (wakePop) {
+        pthread_cond_signal(&_emptyCond);
+    }
 }
 
 template <typename T>
