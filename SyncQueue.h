@@ -2,6 +2,8 @@
 #define __SYNC_QUEUE_H__
 
 #include <pthread.h>
+#include <semaphore.h>
+#include <assert.h>
 #include <deque>
 #include <iostream>
 
@@ -26,44 +28,35 @@ class SyncQueue {
  SyncQueue(size_t queueSize) 
      : _capacity(queueSize)  {
         pthread_mutex_init(&_qMutex, NULL);
-        pthread_cond_init(&_emptyCond, NULL);
-        pthread_cond_init(&_fullCond, NULL);
+        sem_init(&_emptySem, 0, 0);
+        sem_init(&_fullSem, 0, _capacity);
     }
     ~SyncQueue() { 
         pthread_mutex_destroy(&_qMutex);
-        pthread_cond_destroy(&_emptyCond);
-        pthread_cond_destroy(&_fullCond);
+        sem_destroy(&_emptySem);
+        sem_destroy(&_fullSem);
     }
     T pop();
     void push(T);
-    void wakeAll();
+    void wakeAll(size_t n);
  private:
     std::deque<T> _q;
     pthread_mutex_t _qMutex;
-    pthread_cond_t _emptyCond;
-    pthread_cond_t _fullCond;
+    sem_t _emptySem;
+    sem_t _fullSem;
     const size_t _capacity;
 };
 
 
 template<typename T>
 T SyncQueue<T>::pop() {
-    bool wakePush = false;
+    sem_wait(&_emptySem);
+    ScopedLocker lock(_qMutex);
     T t;
-    {
-        ScopedLocker lock(_qMutex);
-        wakePush = (_q.size() == _capacity);
-        if (_q.empty()) {
-            pthread_cond_wait(&_emptyCond, &_qMutex);
-        }
-        wakePush |= (_q.size() == _capacity);
-        if (!_q.empty()) {
-            t = _q.front();
-            _q.pop_front();
-        }
-    }
-    if (wakePush) {
-        pthread_cond_broadcast(&_fullCond);
+    if (!_q.empty()) {
+        t = _q.front();
+        _q.pop_front();
+        sem_post(&_fullSem);
     }
     return t;
 }
@@ -71,19 +64,18 @@ T SyncQueue<T>::pop() {
 
 template <typename T>
 void SyncQueue<T>::push(T t) {
-    {
-        ScopedLocker lock(_qMutex);
-        while (_q.size() == _capacity) {
-            pthread_cond_wait(&_fullCond, &_qMutex);
-        }
-        _q.push_back(t);
-    }
-    pthread_cond_signal(&_emptyCond);
+    sem_wait(&_fullSem);
+    ScopedLocker lock(_qMutex);
+    assert(_q.size() < _capacity);
+    _q.push_back(t);
+    sem_post(&_emptySem);
 }
 
 template <typename T>
-void SyncQueue<T>::wakeAll() {
-    pthread_cond_broadcast(&_emptyCond);
+void SyncQueue<T>::wakeAll(size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        sem_post(&_emptySem);
+    }
 }
 
 #endif

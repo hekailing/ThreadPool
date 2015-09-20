@@ -26,7 +26,7 @@ class ThreadPool {
     }
     ~ThreadPool() {
         pthread_spin_lock(&_closeSpin);
-        _taskQueue.wakeAll();
+        _taskQueue.wakeAll(_threads.size());
         for (size_t i = 0; i < _threads.size(); ++i) {
             pthread_join(_threads[i], NULL);
         }
