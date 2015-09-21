@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <unistd.h>
 #include <vector>
 #include <math.h>
 #include "ThreadPool.h"
@@ -14,6 +15,7 @@ public:
         for (size_t i = 0; i < _len; ++i) {
             _val[i] = i;
         }
+        usleep(1000);
     }
 private:
     vector<int> _val;
@@ -38,7 +40,7 @@ int main()
     for (size_t t = 0; t < case_num; ++t)
     {
         cout << "case : " << t << endl;
-        ThreadPool threadPool(20);
+        ThreadPool threadPool(150);
         vector<pthread_t> tids;
         for (size_t i = 0; i < 5; ++i) {
             pthread_t tid;
