@@ -2,8 +2,7 @@
 #include <iostream>
 
 void* ThreadPool::workLoop() {
-    while (!pthread_spin_trylock(&_closeSpin)) {
-        pthread_spin_unlock(&_closeSpin);
+    while (!_closing) {
         WorkItemPtr workItemPtr = _taskQueue.pop();
         if (workItemPtr) {
             workItemPtr->process();

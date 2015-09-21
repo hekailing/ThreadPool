@@ -17,22 +17,20 @@ class ThreadPool {
  public:
  ThreadPool(size_t threadCount = 20, size_t queueSize = 1000) 
      : _taskQueue(queueSize) {
+        _closing = 0;
         for (size_t i = 0; i < threadCount; ++i) {
             pthread_t tid;
             pthread_create(&tid, NULL, (ThreadLoop)&ThreadPool::workLoop, this);
             _threads.push_back(tid);
         }
-        pthread_spin_init(&_closeSpin, PTHREAD_PROCESS_PRIVATE);
     }
     ~ThreadPool() {
-        pthread_spin_lock(&_closeSpin);
+        _closing = 1;
         _taskQueue.wakeAll();
         for (size_t i = 0; i < _threads.size(); ++i) {
             pthread_join(_threads[i], NULL);
         }
         _threads.clear();
-        pthread_spin_unlock(&_closeSpin);
-        pthread_spin_destroy(&_closeSpin);
     }
     void pushWorkItem(WorkItemPtr workItem);
  private:
@@ -40,7 +38,7 @@ class ThreadPool {
     void* workLoop();
     std::vector<pthread_t> _threads;
     SyncQueue<WorkItemPtr> _taskQueue;
-    pthread_spinlock_t _closeSpin;
+    volatile int _closing;
 };
 
 #endif
