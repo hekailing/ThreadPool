@@ -35,6 +35,7 @@ class SyncQueue {
         pthread_cond_destroy(&_fullCond);
     }
     T pop();
+    bool popUnlessClosed(T &t);
     void push(T);
     void wakeAll();
     void close(bool immediate);
@@ -65,6 +66,13 @@ T SyncQueue<T>::pop() {
     if (wakePush) {
         pthread_cond_broadcast(&_fullCond);
     }
+    return t;
+}
+
+
+template<typename T>
+bool SyncQueue<T>::popUnlessClosed(T &t) {
+    t = pop();
     return t;
 }
 
